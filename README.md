@@ -1,4 +1,4 @@
-# OpenShift Project Backup
+# OpenShift etcd Backup
 Simple OpenShift Cronjob that creates a etcd snapshot and writes it to a Persistent Volume. 
 
 ## Requirements
@@ -23,6 +23,7 @@ ansible-playbook playbook.yml \
 -e openshift_etcd_backup_storage_size="10G"
 -e openshift_etcd_backup_deadline="3600"
 
+oc adm policy add-scc-to-user privileged system:serviceaccount:${openshift_etcd_backup_namespace}:etcd-backup
 ```
 
 | Parameter  | Description | Defaults |

@@ -63,7 +63,6 @@
                       defaultMode: 0755
                       name: openshift-backup-script
                   - name: backupdir
-                  - name: backupdir
                     persistentVolumeClaim:
                       claimName: etcd-backup
 
@@ -118,6 +117,8 @@
           cd ${BACKUP_DIR_WITH_DATE}
           echo "Zipping"
           tar czf ${BACKUP_DIR}/backup-${START_TIME}.tar.gz * --warning=no-file-changed
+          ### Cleanup
+          rm -rf ${BACKUP_DIR_WITH_DATE}
 
 - name: Create ServiceAccount for openshift-etcd-backup
   k8s:
