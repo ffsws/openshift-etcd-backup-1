@@ -5,9 +5,14 @@
     api_version: v1
     kind: Namespace
     state: present
+    # metadata:
+    #   annotations:
+    #     openshift.io/node-selector: node-role.kubernetes.io/master=true
 
+# To Fix: As soon the module is fixed to set metadata on namespace objects, use the module instead and delete the workaround
 - name: Change default nodeSelector to masters
-  command: "oc patch namespace {{ openshift_etcd_backup_namespace }} -p '{\"metadata\":{\"annotations\":{\"openshift.io/node-selector\":\"node-role.kubernetes.io/master=true\"}}}}'"
+  command: "oc patch namespace {{ openshift_etcd_backup_namespace }} \
+            -p '{ \"metadata\":{ \"annotations\":{ \"openshift.io/node-selector\":\"node-role.kubernetes.io/master=true\" }} }}'"
 
 - name: Create CronJob for openshift-etcd-backup
   k8s:
@@ -102,22 +107,31 @@
           ETCD_CONFIG_DIR="/etc/etcd"
           START_TIME=$(date +%Y%m%d%H%M)
           BACKUP_DIR_WITH_DATE=${BACKUP_DIR}/${START_TIME}
-          ### Cleanup
+          log(){
+            date "+%F %T: ${@}"
+          }
+          die(){
+            log "$1"
+            exit "$2"
+          }
+          log "Cleanup"
           find $BACKUP_DIR -mtime +10 -delete
-          ### Setup
+          log "Setup"
           mkdir -p $BACKUP_DIR_WITH_DATE
-          ### Backup config
-          cp -a "${ETCD_CONFIG_DIR}" "${BACKUP_DIR_WITH_DATE}/${ETCD_CONFIG_BCK_DIR}"
-          ### Backup etcd
+          log "Backup etcd"
           ETCD_EP=$(grep https.*2379 ${ETCD_CONFIG_DIR}/etcd.conf | cut -d '/' -f3 | head -1)
           ETCDCTL_API=3 etcdctl \
            --cert /etc/etcd/peer.crt --key /etc/etcd/peer.key --cacert /etc/etcd/ca.crt \
            --endpoints ${ETCD_EP} snapshot save ${BACKUP_DIR_WITH_DATE}/snapshot.db
-          ### Zip it
+          ETCDCTL_API=3 etcdctl \
+           --cert /etc/etcd/peer.crt --key /etc/etcd/peer.key --cacert /etc/etcd/ca.crt \
+           --endpoints ${ETCD_EP} snapshot status ${BACKUP_DIR_WITH_DATE}/snapshot.db
+          [ "$?" -ne 0 ] \
+          && die "${BACKUP_DIR_WITH_DATE}/snapshot.db is not a valid etcd backup. Please check the status of your etcd cluster" 1
           cd ${BACKUP_DIR_WITH_DATE}
-          echo "Zipping"
+          log "Zipping"
           tar czf ${BACKUP_DIR}/backup-${START_TIME}.tar.gz * --warning=no-file-changed
-          ### Cleanup
+          log "Cleanup"
           rm -rf ${BACKUP_DIR_WITH_DATE}
 
 - name: Create ServiceAccount for openshift-etcd-backup
